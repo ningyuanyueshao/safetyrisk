@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: moderation-service
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      timeout: 2s
+
+server:
+  port: 8081
+
+moderation:
+  l1:
+    sensitive-words:
+      - 赌博
+      - 毒品
+      - 色情
+    regex-rules:
+      - "(?i)\\b(?:buy|sell)\\s+fake\\s+id\\b"
+      - "(?i)\\bfraud\\b"
+    blocked-users:
+      - blocked-user-001
+  cache:
+    enabled: true
+    ttl-seconds: 120
+    key-prefix: "moderation:l1:"
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus

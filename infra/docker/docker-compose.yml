@@ -1,0 +1,126 @@
+
+name: multimodel-safetyrisk
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: msr-redis
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  mysql:
+    image: mysql:8.0
+    container_name: msr-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root123}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-moderation}
+      MYSQL_USER: ${MYSQL_USER:-moderation}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-moderation123}
+    ports:
+      - "3306:3306"
+    command: ["--default-authentication-plugin=mysql_native_password"]
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-root123}"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.1
+    container_name: msr-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: msr-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+
+  zipkin:
+    image: openzipkin/zipkin:3.4.3
+    container_name: msr-zipkin
+    ports:
+      - "9411:9411"
+
+  moderation-service:
+    build:
+      context: ../..
+      dockerfile: moderation-service/Dockerfile
+    container_name: msr-moderation-service
+    depends_on:
+      redis:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_APPLICATION_NAME: moderation-service
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-moderation}
+      SPRING_DATASOURCE_USERNAME: ${MYSQL_USER:-moderation}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD:-moderation123}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: http://zipkin:9411/api/v2/spans
+
+  model-service:
+    build:
+      context: ../..
+      dockerfile: model-service/Dockerfile
+    container_name: msr-model-service
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_APPLICATION_NAME: model-service
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-replace-me}
+
+  gateway-service:
+    build:
+      context: ../..
+      dockerfile: gateway-service/Dockerfile
+    container_name: msr-gateway-service
+    depends_on:
+      moderation-service:
+        condition: service_started
+      model-service:
+        condition: service_started
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_APPLICATION_NAME: gateway-service
+      GATEWAY_BACKEND_MODERATION_URL: http://moderation-service:8081
+
+volumes:
+  redis-data:
+  mysql-data:
