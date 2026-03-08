@@ -11,6 +11,7 @@ public final class ModerationCacheKeyBuilder {
     }
 
     public static String build(ModerationRequest request) {
+        // Build key from moderation-relevant fields only so equivalent requests share cache.
         String raw = String.join("|",
                 safe(request.getContentType() == null ? null : request.getContentType().name()),
                 safe(request.getUserId()),
@@ -25,6 +26,7 @@ public final class ModerationCacheKeyBuilder {
 
     private static String sha256Hex(String raw) {
         try {
+            // Hash long or sensitive raw content before storing it as a Redis key.
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] bytes = digest.digest(raw.getBytes(StandardCharsets.UTF_8));
             StringBuilder builder = new StringBuilder(bytes.length * 2);

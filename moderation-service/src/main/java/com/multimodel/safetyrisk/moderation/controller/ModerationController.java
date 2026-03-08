@@ -37,12 +37,16 @@ public class ModerationController {
             @Valid @RequestBody ModerationRequest request,
             @RequestHeader(value = "X-Request-Id", required = false) String requestId) {
 
+        // Keep request tracing consistent even when caller does not pass X-Request-Id.
         String finalRequestId = requestId == null || requestId.isBlank() ? UUID.randomUUID().toString() : requestId;
+        // Cache key is based on stable business fields, not random request id.
         String cacheKey = ModerationCacheKeyBuilder.build(request);
 
         return moderationDecisionCache.get(cacheKey)
+                // Hit cache first to avoid recomputing the same moderation result.
                 .map(cached -> toResponse(finalRequestId, cached, true))
                 .switchIfEmpty(Mono.defer(() -> {
+                    // L1 is a fast local filter layer; L2/L3 happens in later stages.
                     CachedModerationDecision decision = evaluateByL1(request);
                     return moderationDecisionCache.put(cacheKey, decision)
                             .thenReturn(toResponse(finalRequestId, decision, false));
@@ -56,6 +60,7 @@ public class ModerationController {
         if (l1Result.isRejected()) {
             decision.setViolation(true);
             decision.setDecision("REJECT");
+            // High confidence because rejection comes from deterministic rules.
             decision.setConfidence(0.99);
             decision.setReason(joinReason(l1Result));
             return decision;
@@ -63,6 +68,7 @@ public class ModerationController {
 
         decision.setViolation(false);
         decision.setDecision("PASS_TO_L2");
+        // Non-violation here means "not blocked by L1", not final model judgment.
         decision.setConfidence(0.85);
         decision.setReason("L1 passed, route to L2/L3 model pipeline next.");
         return decision;

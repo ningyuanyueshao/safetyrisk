@@ -30,10 +30,12 @@ public class AhoCorasickMatcher {
         Set<String> uniqueMatches = new HashSet<>();
 
         for (char c : normalized.toCharArray()) {
+            // Follow failure links until a valid transition is found (or back to root).
             while (current != root && !current.children.containsKey(c)) {
                 current = current.fail;
             }
             current = current.children.getOrDefault(c, root);
+            // Output contains both direct matches and inherited suffix matches.
             uniqueMatches.addAll(current.outputs);
         }
 
@@ -68,6 +70,7 @@ public class AhoCorasickMatcher {
                     failure = failure.fail;
                 }
 
+                // If no proper suffix transition exists, fall back to root.
                 next.fail = failure == null ? root : failure.children.get(transition);
                 next.outputs.addAll(next.fail.outputs);
                 queue.offer(next);

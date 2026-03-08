@@ -29,6 +29,7 @@ public class L1RegexFilterService {
     }
 
     public void reload() {
+        // Build automaton once and reuse for O(n) multi-keyword scanning per request.
         this.matcher = new AhoCorasickMatcher(properties.getSensitiveWords());
 
         List<Pattern> compiled = new ArrayList<>();
@@ -43,15 +44,18 @@ public class L1RegexFilterService {
     }
 
     public L1FilterResult filter(ModerationRequest request) {
+        // 1) User-level blocklist has highest priority and short-circuits immediately.
         if (request.getUserId() != null && blockedUsers.contains(request.getUserId())) {
             return L1FilterResult.reject("BLOCKED_USER", List.of(request.getUserId()));
         }
 
+        // 2) Sensitive words check via Aho-Corasick for deterministic low-latency matching.
         List<String> sensitiveHits = matcher.match(request.getContent());
         if (!sensitiveHits.isEmpty()) {
             return L1FilterResult.reject("SENSITIVE_WORD", sensitiveHits);
         }
 
+        // 3) Regex rules cover patterns that are hard to express as plain keywords.
         for (Pattern pattern : regexPatterns) {
             if (pattern.matcher(request.getContent()).find()) {
                 return L1FilterResult.reject("REGEX_RULE", List.of(pattern.pattern()));
