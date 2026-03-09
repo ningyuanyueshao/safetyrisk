@@ -16,12 +16,12 @@ public class L1FilterResult {
     }
 
     public static L1FilterResult pass() {
-        // PASS means this layer found no hard violation; later layers may still reject.
+        // PASS 表示当前层未发现硬性违规；后续层仍可能拒绝。
         return new L1FilterResult(false, "PASS", Collections.emptyList());
     }
 
     public static L1FilterResult reject(String reason, List<String> matches) {
-        // Preserve concrete matches to improve traceability and auditability.
+        // 保留具体命中内容，便于问题追踪与审计。
         return new L1FilterResult(true, reason, matches);
     }
 

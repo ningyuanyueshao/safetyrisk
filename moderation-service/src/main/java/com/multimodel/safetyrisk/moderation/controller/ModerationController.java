@@ -37,16 +37,16 @@ public class ModerationController {
             @Valid @RequestBody ModerationRequest request,
             @RequestHeader(value = "X-Request-Id", required = false) String requestId) {
 
-        // Keep request tracing consistent even when caller does not pass X-Request-Id.
+        // 即使调用方未传 X-Request-Id，也生成请求标识，保证链路可追踪。
         String finalRequestId = requestId == null || requestId.isBlank() ? UUID.randomUUID().toString() : requestId;
-        // Cache key is based on stable business fields, not random request id.
+        // 缓存键基于稳定业务字段，不包含随机请求 ID，便于命中相同请求。
         String cacheKey = ModerationCacheKeyBuilder.build(request);
 
         return moderationDecisionCache.get(cacheKey)
-                // Hit cache first to avoid recomputing the same moderation result.
+                // 先查缓存，避免重复计算同一审核结果。
                 .map(cached -> toResponse(finalRequestId, cached, true))
                 .switchIfEmpty(Mono.defer(() -> {
-                    // L1 is a fast local filter layer; L2/L3 happens in later stages.
+                    // L1 为本地快速规则层；L2/L3 模型审核在后续阶段处理。
                     CachedModerationDecision decision = evaluateByL1(request);
                     return moderationDecisionCache.put(cacheKey, decision)
                             .thenReturn(toResponse(finalRequestId, decision, false));
@@ -60,7 +60,7 @@ public class ModerationController {
         if (l1Result.isRejected()) {
             decision.setViolation(true);
             decision.setDecision("REJECT");
-            // High confidence because rejection comes from deterministic rules.
+            // 拒绝来自确定性规则，置信度可设为较高值。
             decision.setConfidence(0.99);
             decision.setReason(joinReason(l1Result));
             return decision;
@@ -68,7 +68,7 @@ public class ModerationController {
 
         decision.setViolation(false);
         decision.setDecision("PASS_TO_L2");
-        // Non-violation here means "not blocked by L1", not final model judgment.
+        // 此处“非违规”仅表示未被 L1 拦截，不代表最终模型结论。
         decision.setConfidence(0.85);
         decision.setReason("L1 passed, route to L2/L3 model pipeline next.");
         return decision;

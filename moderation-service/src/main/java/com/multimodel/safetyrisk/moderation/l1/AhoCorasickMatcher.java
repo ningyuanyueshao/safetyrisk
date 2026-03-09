@@ -30,12 +30,12 @@ public class AhoCorasickMatcher {
         Set<String> uniqueMatches = new HashSet<>();
 
         for (char c : normalized.toCharArray()) {
-            // Follow failure links until a valid transition is found (or back to root).
+            // 沿失配指针回退，直到找到可用转移（或回到根节点）。
             while (current != root && !current.children.containsKey(c)) {
                 current = current.fail;
             }
             current = current.children.getOrDefault(c, root);
-            // Output contains both direct matches and inherited suffix matches.
+            // outputs 同时包含当前节点命中和由后缀继承的命中项。
             uniqueMatches.addAll(current.outputs);
         }
 
@@ -70,7 +70,7 @@ public class AhoCorasickMatcher {
                     failure = failure.fail;
                 }
 
-                // If no proper suffix transition exists, fall back to root.
+                // 若不存在可用后缀转移，则失配指针回落到根节点。
                 next.fail = failure == null ? root : failure.children.get(transition);
                 next.outputs.addAll(next.fail.outputs);
                 queue.offer(next);

@@ -29,7 +29,7 @@ public class L1RegexFilterService {
     }
 
     public void reload() {
-        // Build automaton once and reuse for O(n) multi-keyword scanning per request.
+        // 自动机构建一次后复用，使每次请求可进行 O(n) 的多关键词扫描。
         this.matcher = new AhoCorasickMatcher(properties.getSensitiveWords());
 
         List<Pattern> compiled = new ArrayList<>();
@@ -44,18 +44,18 @@ public class L1RegexFilterService {
     }
 
     public L1FilterResult filter(ModerationRequest request) {
-        // 1) User-level blocklist has highest priority and short-circuits immediately.
+        // 1) 用户级黑名单优先级最高，命中后立即短路返回。
         if (request.getUserId() != null && blockedUsers.contains(request.getUserId())) {
             return L1FilterResult.reject("BLOCKED_USER", List.of(request.getUserId()));
         }
 
-        // 2) Sensitive words check via Aho-Corasick for deterministic low-latency matching.
+        // 2) 使用 Aho-Corasick 进行敏感词检测，保证确定性与低延迟。
         List<String> sensitiveHits = matcher.match(request.getContent());
         if (!sensitiveHits.isEmpty()) {
             return L1FilterResult.reject("SENSITIVE_WORD", sensitiveHits);
         }
 
-        // 3) Regex rules cover patterns that are hard to express as plain keywords.
+        // 3) 正则规则用于覆盖难以用关键词表达的模式。
         for (Pattern pattern : regexPatterns) {
             if (pattern.matcher(request.getContent()).find()) {
                 return L1FilterResult.reject("REGEX_RULE", List.of(pattern.pattern()));

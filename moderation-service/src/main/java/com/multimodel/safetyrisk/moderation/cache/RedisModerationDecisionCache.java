@@ -33,7 +33,7 @@ public class RedisModerationDecisionCache implements ModerationDecisionCache {
         return redisTemplate.opsForValue()
                 .get(fullKey(key))
                 .flatMap(this::fromJson)
-                // Cache errors should not block moderation requests.
+                // 缓存读异常不应阻塞审核主流程。
                 .onErrorResume(ignored -> Mono.empty());
     }
 
@@ -47,7 +47,7 @@ public class RedisModerationDecisionCache implements ModerationDecisionCache {
                 .flatMap(json -> redisTemplate.opsForValue()
                         .set(fullKey(key), json, Duration.ofSeconds(properties.getTtlSeconds())))
                 .then()
-                // Write failures degrade to "no cache" mode instead of hard failure.
+                // 缓存写失败时降级为“无缓存模式”，避免整体请求失败。
                 .onErrorResume(ignored -> Mono.empty());
     }
 
