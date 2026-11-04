@@ -10,6 +10,13 @@ target/
 
 .env
 
+# Internal project documents
+/存在的问题.txt
+/开发进展记录.md
+/技术实现方案.md
+/系统架构方案.md
+/项目介绍.md
+
 # Model artifacts
 *.onnx
 *.safetensors
