@@ -1,11 +1,32 @@
 spring:
   application:
     name: moderation-service
+  codec:
+    max-in-memory-size: 10MB
+  reactor:
+    context-propagation: auto
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/moderation?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai}
+    username: ${SPRING_DATASOURCE_USERNAME:moderation}
+    password: ${SPRING_DATASOURCE_PASSWORD:moderation123}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  sql:
+    init:
+      mode: always
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
       timeout: 2s
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      auto-offset-reset: latest
 
 server:
   port: 8081
@@ -21,13 +42,51 @@ moderation:
       - "(?i)\\bfraud\\b"
     blocked-users:
       - blocked-user-001
+  model-service:
+    base-url: ${MODEL_SERVICE_BASE_URL:http://localhost:8082}
+    # 严格一致性模式：同步/异步给相同的下游预算，并覆盖 model-service 的 27s 全链预算。
+    # 30s 是最坏情况上限，不会把正常请求的人为延迟拉到 30s。
+    timeout-ms: ${MODERATION_MODEL_SERVICE_TIMEOUT_MS:30000}
+    async-timeout-ms: ${MODERATION_MODEL_SERVICE_ASYNC_TIMEOUT_MS:30000}
   cache:
     enabled: true
     ttl-seconds: 120
-    key-prefix: "moderation:l1:"
+    key-prefix: "moderation:l1-model-service:"
+    local:
+      enabled: true
+      ttl-seconds: 30
+      max-size: 10000
+  async:
+    enabled: true
+    topic: moderation.tasks
+    dlq-topic: moderation.tasks.dlq
+    group-id: moderation-async-workers
+    enqueue-timeout-ms: ${MODERATION_ASYNC_ENQUEUE_TIMEOUT_MS:5000}
+    # 单任务处理预算。必须大于 model-service.async-timeout-ms(30s)：
+    # 否则消费侧 block 会先超时，把本该"降级 REVIEW 完成"的任务误判为 FAILED 并触发重试/DLQ。
+    process-timeout-ms: ${MODERATION_ASYNC_PROCESS_TIMEOUT_MS:35000}
+    max-retries: ${MODERATION_ASYNC_MAX_RETRIES:2}
+    retry-backoff-ms: ${MODERATION_ASYNC_RETRY_BACKOFF_MS:1000}
+    # PROCESSING 状态的处理租约：消费者崩溃后任务卡在 PROCESSING，超过该时长允许被重新抢占。
+    processing-lease-ms: ${MODERATION_ASYNC_PROCESSING_LEASE_MS:90000}
+    # 兜底清扫：落库成功但从未入队/无人认领的 PENDING 孤儿任务，超过该时长由定时任务重新入队。
+    pending-orphan-threshold-ms: 300000
+    sweep-interval-ms: 60000
+    pending-sweep-batch-size: 100
 
 management:
+  tracing:
+    sampling:
+      probability: ${MANAGEMENT_TRACING_SAMPLING_PROBABILITY:1.0}
+  zipkin:
+    tracing:
+      endpoint: ${MANAGEMENT_ZIPKIN_TRACING_ENDPOINT:http://localhost:9411/api/v2/spans}
   endpoints:
     web:
       exposure:
+        # 暴露 prometheus 端点给 Prometheus 拉取；health/info/metrics 便于本地排障。
         include: health,info,metrics,prometheus
+
+logging:
+  pattern:
+    level: "%5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}]"

@@ -1,0 +1,15 @@
+# Dockerfiles only need the Maven reactor descriptors and Java source trees.
+# Keeping large datasets/model weights out of the context avoids multi-GB builds.
+*
+!pom.xml
+!common-core/
+!common-core/**
+!gateway-service/
+!gateway-service/**
+!moderation-service/
+!moderation-service/**
+!model-service/
+!model-service/**
+!mock-bailian-service/
+!mock-bailian-service/**
+**/target/

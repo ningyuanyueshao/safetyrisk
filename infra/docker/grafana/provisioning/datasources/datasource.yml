@@ -1,0 +1,11 @@
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    # 在 docker compose 网络内通过服务名访问 Prometheus。
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true

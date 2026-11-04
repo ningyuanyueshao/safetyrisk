@@ -1,0 +1,25 @@
+global:
+  # 抓取与规则评估周期；Grafana 面板中的 rate(...[5m]) 以这些原始点为基础。
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  # 告警规则文件挂载在容器内该路径（见 docker-compose.yml 的 volume 配置）。
+  - /etc/prometheus/alerts/moderation-alert-rules.yml
+
+scrape_configs:
+  - job_name: 'gateway-service'
+    # 通过 host.docker.internal 访问宿主机上由脚本启动的本地服务。
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['host.docker.internal:8080']
+
+  - job_name: 'moderation-service'
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['host.docker.internal:8081']
+
+  - job_name: 'model-service'
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['host.docker.internal:8082']

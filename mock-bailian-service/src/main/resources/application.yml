@@ -1,0 +1,18 @@
+spring:
+  application:
+    name: mock-bailian-service
+
+server:
+  port: 8089
+
+mock:
+  bailian:
+    normal-latency-ms: ${MOCK_BAILIAN_NORMAL_LATENCY_MS:100}
+    extreme-latency-ms: ${MOCK_BAILIAN_EXTREME_LATENCY_MS:3800}
+    timeout-latency-ms: ${MOCK_BAILIAN_TIMEOUT_LATENCY_MS:7000}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

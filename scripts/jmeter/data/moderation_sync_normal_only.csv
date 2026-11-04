@@ -1,0 +1,2 @@
+contentType,scenario,content,imageUrl,userId,expectedDecision,expectedReasonContains
+TEXT,NORMAL,压测正常文本 __MOCK_SCENARIO_NORMAL__,,perf-mock-user-normal-001,PASS,mock-normal

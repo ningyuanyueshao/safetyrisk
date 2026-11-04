@@ -1,0 +1,150 @@
+{
+  "id": null,
+  "uid": "moderation-async-overview",
+  "title": "Moderation Ops Overview",
+  "tags": ["moderation", "async", "week4"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 2,
+  "refresh": "10s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Async Enqueue & Dedup (RPS)",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"refId": "A", "expr": "sum(rate(moderation_async_enqueue_total[5m]))", "legendFormat": "enqueue/s"},
+        {"refId": "B", "expr": "sum(rate(moderation_async_dedup_hit_total[5m]))", "legendFormat": "dedup-hit/s"}
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Retry & DLQ (RPS)",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"refId": "A", "expr": "sum(rate(moderation_async_retry_total[5m]))", "legendFormat": "retry/s"},
+        {"refId": "B", "expr": "sum(rate(moderation_async_dlq_total[5m]))", "legendFormat": "dlq/s"}
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Dedup Hit Ratio (5m)",
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(moderation_async_dedup_hit_total[5m])) / clamp_min(sum(rate(moderation_async_enqueue_total[5m])) + sum(rate(moderation_async_dedup_hit_total[5m])), 1e-6)"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "percentunit"}, "overrides": []}
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Retry Ratio (5m)",
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(moderation_async_retry_total[5m])) / clamp_min(sum(rate(moderation_async_enqueue_total[5m])), 1e-6)"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "percentunit"}, "overrides": []}
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "DLQ Ratio (5m)",
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(moderation_async_dlq_total[5m])) / clamp_min(sum(rate(moderation_async_enqueue_total[5m])), 1e-6)"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "percentunit"}, "overrides": []}
+    },
+    {
+      "id": 6,
+      "type": "table",
+      "title": "Firing Alerts",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 16},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"refId": "A", "expr": "ALERTS{alertstate=\"firing\"}"}],
+      "options": {"showHeader": true}
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Sync Latency P95/P99 (s)",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum(rate(moderation_sync_latency_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p95"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.99, sum(rate(moderation_sync_latency_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p99"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Sync Decision Distribution (RPS)",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(moderation_sync_decision_total[5m])) by (decision)",
+          "legendFormat": "{{decision}}"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Task Query & Replay Throughput (RPS)",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 32},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"refId": "A", "expr": "sum(rate(moderation_async_task_query_total[5m]))", "legendFormat": "task-query/s"},
+        {"refId": "B", "expr": "sum(rate(moderation_async_replay_single_total[5m]))", "legendFormat": "replay-single/s"},
+        {"refId": "C", "expr": "sum(rate(moderation_async_replay_batch_total[5m]))", "legendFormat": "replay-batch-task/s"}
+      ]
+    },
+    {
+      "id": 10,
+      "type": "stat",
+      "title": "Sync Error Ratio (5m)",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 32},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(moderation_sync_error_total[5m])) / clamp_min(sum(rate(moderation_sync_decision_total[5m])), 1e-6)"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "percentunit"}, "overrides": []}
+    }
+  ],
+  "templating": {"list": []},
+  "annotations": {"list": []}
+}

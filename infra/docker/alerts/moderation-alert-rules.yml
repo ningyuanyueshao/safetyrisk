@@ -1,0 +1,50 @@
+groups:
+  - name: multimodel-safetyrisk.rules
+    rules:
+      - alert: ServiceDown
+        # 任一核心服务 up=0 持续 2 分钟则触发，避免短抖动导致误报。
+        expr: up{job=~"gateway-service|moderation-service|model-service"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          team: safetyrisk
+        annotations:
+          summary: "Service down: {{ $labels.job }}"
+          description: "{{ $labels.job }} has been down for more than 2 minutes."
+
+      - alert: ModerationAsyncDlqHigh
+        # DLQ 每秒速率超过阈值，通常意味着消费端持续失败或数据异常。
+        expr: sum(rate(moderation_async_dlq_total[5m])) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+          team: safetyrisk
+        annotations:
+          summary: "Moderation async DLQ rate is high"
+          description: "DLQ rate over last 5m is {{ $value }} events/sec, above threshold 0.05."
+
+      - alert: ModerationAsyncRetryRatioHigh
+        # 重试率 = retry / enqueue；用 clamp_min 防止分母接近 0 时出现数值爆炸。
+        expr: |
+          sum(rate(moderation_async_retry_total[5m]))
+          /
+          clamp_min(sum(rate(moderation_async_enqueue_total[5m])), 1e-6)
+          > 0.3
+        for: 10m
+        labels:
+          severity: warning
+          team: safetyrisk
+        annotations:
+          summary: "Moderation async retry ratio is high"
+          description: "Retry ratio over last 5m is {{ $value }}, above threshold 0.3."
+
+      - alert: InstanceRestartedRecently
+        # 进程 uptime 在窗口内“几乎没有增长”可视为近期重启信号。
+        expr: increase(process_uptime_seconds[10m]) < 60
+        for: 2m
+        labels:
+          severity: info
+          team: safetyrisk
+        annotations:
+          summary: "Instance restarted recently"
+          description: "Instance {{ $labels.instance }} likely restarted in the last 10 minutes."

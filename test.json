@@ -1,0 +1,218 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "MultiModel SafetyRisk API",
+    "description": "Gateway-facing APIs for moderation and health check.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Gateway"
+    }
+  ],
+  "paths": {
+    "/actuator/health": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "Health Check",
+        "operationId": "gatewayHealth",
+        "responses": {
+          "200": {
+            "description": "Service healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                },
+                "example": {
+                  "status": "UP"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/moderation/check": {
+      "post": {
+        "tags": ["Moderation"],
+        "summary": "Content Moderation Check",
+        "operationId": "moderationCheck",
+        "parameters": [
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional request trace ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModerationRequest"
+              },
+              "examples": {
+                "textRisk": {
+                  "summary": "Text content",
+                  "value": {
+                    "contentType": "TEXT",
+                    "content": "我要买毒品",
+                    "userId": "u1"
+                  }
+                },
+                "imageRisk": {
+                  "summary": "Image content",
+                  "value": {
+                    "contentType": "IMAGE",
+                    "content": "image moderation",
+                    "imageUrl": "https://example.com/nude_weapon.png",
+                    "userId": "u2"
+                  }
+                },
+                "mixed": {
+                  "summary": "Mixed content",
+                  "value": {
+                    "contentType": "MIXED",
+                    "content": "normal safe text",
+                    "imageUrl": "https://example.com/nude_weapon.png",
+                    "userId": "u3"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Moderation result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModerationResponse"
+                },
+                "examples": {
+                  "reject": {
+                    "summary": "Reject sample",
+                    "value": {
+                      "requestId": "test-001",
+                      "violation": true,
+                      "decision": "REJECT",
+                      "confidence": 0.99,
+                      "reason": "SENSITIVE_WORD:毒品"
+                    }
+                  },
+                  "review": {
+                    "summary": "Review sample",
+                    "value": {
+                      "requestId": "test-002",
+                      "violation": true,
+                      "decision": "REVIEW",
+                      "confidence": 0.6,
+                      "reason": "L2 fallback keyword strategy hits=scam,porn, decision=REVIEW"
+                    }
+                  },
+                  "pass": {
+                    "summary": "Pass sample",
+                    "value": {
+                      "requestId": "test-003",
+                      "violation": false,
+                      "decision": "PASS_TO_L3",
+                      "confidence": 0.85,
+                      "reason": "L2 fallback keyword strategy: no risk keyword matched., decision=PASS_TO_L3"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error / bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited by gateway",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ModerationRequest": {
+        "type": "object",
+        "required": ["contentType", "content"],
+        "properties": {
+          "contentType": {
+            "type": "string",
+            "enum": ["TEXT", "IMAGE", "MIXED"]
+          },
+          "content": {
+            "type": "string",
+            "minLength": 1
+          },
+          "imageUrl": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          }
+        }
+      },
+      "ModerationResponse": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string"
+          },
+          "violation": {
+            "type": "boolean"
+          },
+          "decision": {
+            "type": "string",
+            "enum": ["REJECT", "REVIEW", "PASS_TO_L3"]
+          },
+          "confidence": {
+            "type": "number",
+            "format": "double"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "HealthResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "UP"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    }
+  }
+}

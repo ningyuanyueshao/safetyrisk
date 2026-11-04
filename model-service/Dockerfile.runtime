@@ -1,0 +1,7 @@
+# Fast local rebuild: package the JAR on the host first, then build from
+# model-service/target so Docker receives only the runtime artifact.
+FROM openjdk:21-jdk-slim
+WORKDIR /app
+COPY model-service-0.1.0-SNAPSHOT.jar app.jar
+EXPOSE 8082
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

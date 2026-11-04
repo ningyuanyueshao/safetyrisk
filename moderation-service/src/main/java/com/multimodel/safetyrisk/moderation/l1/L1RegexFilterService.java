@@ -49,15 +49,25 @@ public class L1RegexFilterService {
             return L1FilterResult.reject("BLOCKED_USER", List.of(request.getUserId()));
         }
 
+        // IMAGE 请求不做文本规则过滤，直接放行到模型层。
+        if (request.getContentType() == ModerationRequest.ContentType.IMAGE) {
+            return L1FilterResult.pass();
+        }
+
+        String text = request.getContent() == null ? "" : request.getContent();
+        if (text.isBlank()) {
+            return L1FilterResult.pass();
+        }
+
         // 2) 使用 Aho-Corasick 进行敏感词检测，保证确定性与低延迟。
-        List<String> sensitiveHits = matcher.match(request.getContent());
+        List<String> sensitiveHits = matcher.match(text);
         if (!sensitiveHits.isEmpty()) {
             return L1FilterResult.reject("SENSITIVE_WORD", sensitiveHits);
         }
 
         // 3) 正则规则用于覆盖难以用关键词表达的模式。
         for (Pattern pattern : regexPatterns) {
-            if (pattern.matcher(request.getContent()).find()) {
+            if (pattern.matcher(text).find()) {
                 return L1FilterResult.reject("REGEX_RULE", List.of(pattern.pattern()));
             }
         }

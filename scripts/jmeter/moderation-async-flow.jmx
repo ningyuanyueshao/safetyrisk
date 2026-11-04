@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
+  <hashTree>
+    <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="Moderation Async Flow Load Test" enabled="true">
+      <boolProp name="TestPlan.functional_mode">false</boolProp>
+      <boolProp name="TestPlan.tearDown_on_shutdown">true</boolProp>
+      <boolProp name="TestPlan.serialize_threadgroups">false</boolProp>
+      <elementProp name="TestPlan.user_defined_variables" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
+        <collectionProp name="Arguments.arguments">
+          <elementProp name="protocol" elementType="Argument"><stringProp name="Argument.name">protocol</stringProp><stringProp name="Argument.value">${__P(protocol,http)}</stringProp><stringProp name="Argument.metadata">=</stringProp></elementProp>
+          <elementProp name="host" elementType="Argument"><stringProp name="Argument.name">host</stringProp><stringProp name="Argument.value">${__P(host,localhost)}</stringProp><stringProp name="Argument.metadata">=</stringProp></elementProp>
+          <elementProp name="port" elementType="Argument"><stringProp name="Argument.name">port</stringProp><stringProp name="Argument.value">${__P(port,8080)}</stringProp><stringProp name="Argument.metadata">=</stringProp></elementProp>
+          <elementProp name="threads" elementType="Argument"><stringProp name="Argument.name">threads</stringProp><stringProp name="Argument.value">${__P(threads,20)}</stringProp><stringProp name="Argument.metadata">=</stringProp></elementProp>
+          <elementProp name="rampUp" elementType="Argument"><stringProp name="Argument.name">rampUp</stringProp><stringProp name="Argument.value">${__P(rampUp,10)}</stringProp><stringProp name="Argument.metadata">=</stringProp></elementProp>
+          <elementProp name="loops" elementType="Argument"><stringProp name="Argument.name">loops</stringProp><stringProp name="Argument.value">${__P(loops,15)}</stringProp><stringProp name="Argument.metadata">=</stringProp></elementProp>
+          <elementProp name="pollSleepMs" elementType="Argument"><stringProp name="Argument.name">pollSleepMs</stringProp><stringProp name="Argument.value">${__P(pollSleepMs,500)}</stringProp><stringProp name="Argument.metadata">=</stringProp></elementProp>
+          <elementProp name="maxPolls" elementType="Argument"><stringProp name="Argument.name">maxPolls</stringProp><stringProp name="Argument.value">${__P(maxPolls,20)}</stringProp><stringProp name="Argument.metadata">=</stringProp></elementProp>
+          <elementProp name="payloadCsv" elementType="Argument"><stringProp name="Argument.name">payloadCsv</stringProp><stringProp name="Argument.value">${__P(payloadCsv,scripts/jmeter/data/moderation_async_mock_scenarios.csv)}</stringProp><stringProp name="Argument.metadata">=</stringProp></elementProp>
+          <elementProp name="connectTimeoutMs" elementType="Argument"><stringProp name="Argument.name">connectTimeoutMs</stringProp><stringProp name="Argument.value">${__P(connectTimeoutMs,5000)}</stringProp><stringProp name="Argument.metadata">=</stringProp></elementProp>
+          <elementProp name="responseTimeoutMs" elementType="Argument"><stringProp name="Argument.name">responseTimeoutMs</stringProp><stringProp name="Argument.value">${__P(responseTimeoutMs,40000)}</stringProp><stringProp name="Argument.metadata">=</stringProp></elementProp>
+        </collectionProp>
+      </elementProp>
+      <stringProp name="TestPlan.user_define_classpath"></stringProp>
+    </TestPlan>
+    <hashTree>
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Async Flow Thread Group" enabled="true">
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
+          <stringProp name="LoopController.loops">${loops}</stringProp>
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+        </elementProp>
+        <stringProp name="ThreadGroup.num_threads">${threads}</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">${rampUp}</stringProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+      </ThreadGroup>
+      <hashTree>
+        <CSVDataSet guiclass="TestBeanGUI" testclass="CSVDataSet" testname="Payload CSV" enabled="true">
+          <stringProp name="delimiter">,</stringProp>
+          <stringProp name="fileEncoding">UTF-8</stringProp>
+          <stringProp name="filename">${payloadCsv}</stringProp>
+          <boolProp name="ignoreFirstLine">true</boolProp>
+          <boolProp name="quotedData">false</boolProp>
+          <boolProp name="recycle">true</boolProp>
+          <stringProp name="shareMode">shareMode.all</stringProp>
+          <boolProp name="stopThread">false</boolProp>
+          <stringProp name="variableNames">contentType,scenario,content,imageUrl,userId,expectedDecision,expectedReasonContains,expectedStatus</stringProp>
+        </CSVDataSet>
+        <hashTree/>
+        <JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="Build unique async request" enabled="true">
+          <stringProp name="scriptLanguage">groovy</stringProp>
+          <stringProp name="script">def uuid = java.util.UUID.randomUUID().toString();
+vars.put('requestId', uuid);
+def baseContent = vars.get('content') ?: '';
+vars.put('contentWithBuster', baseContent + ' __CACHE_BUSTER_' + uuid + '__');
+vars.put('pollCounter', '0');
+vars.put('taskStatus', 'PENDING');</stringProp>
+        </JSR223PreProcessor>
+        <hashTree/>
+        <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Headers" enabled="true">
+          <collectionProp name="HeaderManager.headers">
+            <elementProp name="Content-Type" elementType="Header"><stringProp name="Header.name">Content-Type</stringProp><stringProp name="Header.value">application/json</stringProp></elementProp>
+            <elementProp name="Accept" elementType="Header"><stringProp name="Header.name">Accept</stringProp><stringProp name="Header.value">application/json</stringProp></elementProp>
+            <elementProp name="X-Request-Id" elementType="Header"><stringProp name="Header.name">X-Request-Id</stringProp><stringProp name="Header.value">${requestId}</stringProp></elementProp>
+          </collectionProp>
+        </HeaderManager>
+        <hashTree/>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="POST /api/v1/moderation/check/async [${scenario}]" enabled="true">
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
+            <collectionProp name="Arguments.arguments">
+              <elementProp name="" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">{"contentType":"${contentType}","content":"${contentWithBuster}","imageUrl":"${imageUrl}","userId":"${userId}"}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+            </collectionProp>
+          </elementProp>
+          <stringProp name="HTTPSampler.domain">${host}</stringProp>
+          <stringProp name="HTTPSampler.port">${port}</stringProp>
+          <stringProp name="HTTPSampler.protocol">${protocol}</stringProp>
+          <stringProp name="HTTPSampler.path">/api/v1/moderation/check/async</stringProp>
+          <stringProp name="HTTPSampler.method">POST</stringProp>
+          <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <stringProp name="HTTPSampler.connect_timeout">${connectTimeoutMs}</stringProp>
+          <stringProp name="HTTPSampler.response_timeout">${responseTimeoutMs}</stringProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+          <JSONPostProcessor guiclass="JSONPostProcessorGui" testclass="JSONPostProcessor" testname="Extract taskId" enabled="true">
+            <stringProp name="JSONPostProcessor.referenceNames">taskId</stringProp>
+            <stringProp name="JSONPostProcessor.jsonPathExprs">$.taskId</stringProp>
+            <stringProp name="JSONPostProcessor.match_numbers">1</stringProp>
+            <stringProp name="JSONPostProcessor.defaultValues"></stringProp>
+          </JSONPostProcessor>
+          <hashTree/>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Assert Async Submit 200" enabled="true">
+            <collectionProp name="Asserion.test_strings"><stringProp name="49586">200</stringProp></collectionProp>
+            <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+            <intProp name="Assertion.test_type">1</intProp>
+          </ResponseAssertion>
+          <hashTree/>
+        </hashTree>
+        <WhileController guiclass="WhileControllerGui" testclass="WhileController" testname="Poll Until Terminal" enabled="true">
+          <stringProp name="WhileController.condition">${__groovy((vars.get('taskId') != null &amp;&amp; vars.get('taskId') != '') &amp;&amp; (vars.get('taskStatus') != 'COMPLETED' &amp;&amp; vars.get('taskStatus') != 'FAILED') &amp;&amp; (vars.get('pollCounter') as int) &lt; (vars.get('maxPolls') as int),)}</stringProp>
+        </WhileController>
+        <hashTree>
+          <ConstantTimer guiclass="ConstantTimerGui" testclass="ConstantTimer" testname="Poll Wait" enabled="true">
+            <stringProp name="ConstantTimer.delay">${pollSleepMs}</stringProp>
+          </ConstantTimer>
+          <hashTree/>
+          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /api/v1/moderation/tasks/{taskId} [${scenario}]" enabled="true">
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
+              <collectionProp name="Arguments.arguments"/>
+            </elementProp>
+            <stringProp name="HTTPSampler.domain">${host}</stringProp>
+            <stringProp name="HTTPSampler.port">${port}</stringProp>
+            <stringProp name="HTTPSampler.protocol">${protocol}</stringProp>
+            <stringProp name="HTTPSampler.path">/api/v1/moderation/tasks/${taskId}</stringProp>
+            <stringProp name="HTTPSampler.method">GET</stringProp>
+            <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+            <stringProp name="HTTPSampler.connect_timeout">${connectTimeoutMs}</stringProp>
+            <stringProp name="HTTPSampler.response_timeout">${responseTimeoutMs}</stringProp>
+          </HTTPSamplerProxy>
+          <hashTree>
+            <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Assert Task Query 200" enabled="true">
+              <collectionProp name="Asserion.test_strings"><stringProp name="49586">200</stringProp></collectionProp>
+              <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+              <intProp name="Assertion.test_type">1</intProp>
+            </ResponseAssertion>
+            <hashTree/>
+            <JSONPostProcessor guiclass="JSONPostProcessorGui" testclass="JSONPostProcessor" testname="Extract task status" enabled="true">
+              <stringProp name="JSONPostProcessor.referenceNames">taskStatus</stringProp>
+              <stringProp name="JSONPostProcessor.jsonPathExprs">$.status</stringProp>
+              <stringProp name="JSONPostProcessor.match_numbers">1</stringProp>
+              <stringProp name="JSONPostProcessor.defaultValues">PENDING</stringProp>
+            </JSONPostProcessor>
+            <hashTree/>
+            <JSR223PostProcessor guiclass="TestBeanGUI" testclass="JSR223PostProcessor" testname="Increment poll counter" enabled="true">
+              <stringProp name="scriptLanguage">groovy</stringProp>
+              <stringProp name="script">def current = (vars.get('pollCounter') ?: '0') as int
+vars.put('pollCounter', String.valueOf(current + 1))</stringProp>
+            </JSR223PostProcessor>
+            <hashTree/>
+          </hashTree>
+        </hashTree>
+        <JSR223Sampler guiclass="TestBeanGUI" testclass="JSR223Sampler" testname="Assert final async result" enabled="true">
+          <stringProp name="scriptLanguage">groovy</stringProp>
+          <stringProp name="script">import groovy.json.JsonSlurper
+
+def prev = ctx.getPreviousResult()
+if (prev == null) {
+    throw new AssertionError('No task query result available.')
+}
+def body = prev.getResponseDataAsString()
+def json = new JsonSlurper().parseText(body)
+if ((json.status ?: '') != vars.get('expectedStatus')) {
+    throw new AssertionError('Unexpected final status: ' + json.status)
+}
+if ((json.decision ?: '') != vars.get('expectedDecision')) {
+    throw new AssertionError('Unexpected final decision: ' + json.decision)
+}
+if (!((json.reason ?: '').contains(vars.get('expectedReasonContains')))) {
+    throw new AssertionError('Unexpected final reason: ' + json.reason)
+}</stringProp>
+        </JSR223Sampler>
+        <hashTree/>
+      </hashTree>
+    </hashTree>
+  </hashTree>
+</jmeterTestPlan>

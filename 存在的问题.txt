@@ -1,0 +1,8 @@
+
+在一个纯异步非阻塞的框架（Spring WebFlux）里，塞进了一个极其消耗 CPU 且同步执行的 AI 推理库（ONNX Runtime）。
+
+
+kafka任务只落到mysql库，没有用redis缓存的话，数据库压力也很大
+
+
+怎么比较同步和异步的性能差距？

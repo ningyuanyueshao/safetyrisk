@@ -14,6 +14,8 @@ public class GatewayRouteConfig {
             RouteLocatorBuilder builder,
             @Value("${gateway.backend.moderation-url}") String moderationUrl) {
 
+        // 网关收到的审核请求会先命中这条路由，再转发到 moderation-service；
+        // 对 Zipkin 来说，这也是外部请求进入审核链路后的第一跳 HTTP 转发。
         return builder.routes()
                 .route("moderation-service-route", r -> r
                         .path("/api/v1/moderation/**")

@@ -1,12 +1,82 @@
 spring:
   application:
     name: model-service
+  codec:
+    max-in-memory-size: 10MB
+  reactor:
+    context-propagation: auto
 
 server:
   port: 8082
 
+model:
+  protection:
+    rate-limit-enabled: ${MODEL_SERVICE_RATE_LIMIT_ENABLED:false}
+    per-ip-per-second: ${MODEL_SERVICE_PER_IP_PER_SECOND:200}
+    # 全链推理预算：18s(百炼，覆盖实测 P99 16.37s) + 7s(本地，覆盖实测 P99 5.65s) + 2s 调度余量。
+    # 预算阶梯：18s + 7s < 本值 27s < moderation 同步/异步 30s < 消费侧 block 35s。
+    # 本值小于调用方预算，才能保证超时时返回的是 model-service 自己那条带原因的 REVIEW，而不是被外层掐断。
+    infer-timeout-ms: ${MODEL_SERVICE_INFER_TIMEOUT_MS:27000}
+    l3-circuit-failure-threshold: ${MODEL_SERVICE_L3_CIRCUIT_FAILURE_THRESHOLD:5}
+    l3-circuit-open-ms: ${MODEL_SERVICE_L3_CIRCUIT_OPEN_MS:15000}
+  l2:
+    text:
+      # 当前仓库里的 RoBERTa 分类头尚未经过风险数据微调，默认只启用关键词 fallback。
+      enabled: ${MODEL_L2_TEXT_ENABLED:false}
+      model-path: ${MODEL_L2_TEXT_MODEL_PATH:../models/chinese-roberta-wwm-ext-onnx-raw}
+      reject-threshold: 0.85
+      review-threshold: 0.60
+      fallback-risk-keywords:
+        - 诈骗
+        - 赌博
+        - 裸聊
+        - 毒品
+        - fraud
+        - scam
+        - porn
+        - drug
+    image:
+      enabled: ${MODEL_L2_IMAGE_ENABLED:true}
+      model-path: ${MODEL_L2_IMAGE_MODEL_PATH:../models/resnet50_finetune_onnx}
+      reject-threshold: 0.85
+      review-threshold: 0.60
+      fallback-risk-keywords:
+        - nude
+        - porn
+        - blood
+        - weapon
+        - violence
+        - gore
+        - drugs
+  l3:
+    # failover: Bailian API first, local OpenAI-compatible model fallback on failure/circuit-open.
+    provider: ${MODEL_L3_PROVIDER:failover}
+    bailian:
+      enabled: true
+      base-url: ${MODEL_L3_BAILIAN_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
+      api-key: ${DASHSCOPE_API_KEY:}
+      model: ${MODEL_L3_BAILIAN_MODEL:qwen3.8-flash}
+      timeout-ms: ${MODEL_L3_BAILIAN_TIMEOUT_MS:18000}
+    vllm:
+      enabled: true
+      base-url: ${MODEL_L3_VLLM_BASE_URL:http://localhost:11434/v1}
+      model: ${MODEL_L3_VLLM_MODEL:qwen3.5:0.8b}
+      reasoning-effort: ${MODEL_L3_VLLM_REASONING_EFFORT:none}
+      timeout-ms: ${MODEL_L3_VLLM_TIMEOUT_MS:7000}
+
 management:
+  tracing:
+    sampling:
+      probability: ${MANAGEMENT_TRACING_SAMPLING_PROBABILITY:1.0}
+  zipkin:
+    tracing:
+      endpoint: ${MANAGEMENT_ZIPKIN_TRACING_ENDPOINT:http://localhost:9411/api/v2/spans}
   endpoints:
     web:
       exposure:
+        # Model 服务指标会和其他服务一起被 Prometheus 聚合展示与告警。
         include: health,info,metrics,prometheus
+
+logging:
+  pattern:
+    level: "%5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}]"

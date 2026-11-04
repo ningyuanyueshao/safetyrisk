@@ -1,0 +1,17 @@
+spring:
+  config:
+    activate:
+      on-profile: l3-mock
+
+model:
+  protection:
+    infer-timeout-ms: ${MODEL_SERVICE_INFER_TIMEOUT_MS:4500}
+    l3-circuit-failure-threshold: ${MODEL_SERVICE_L3_CIRCUIT_FAILURE_THRESHOLD:1000000}
+    l3-circuit-open-ms: ${MODEL_SERVICE_L3_CIRCUIT_OPEN_MS:1000}
+  l3:
+    provider: bailian
+    bailian:
+      base-url: ${MODEL_L3_BAILIAN_BASE_URL:http://localhost:8089/compatible-mode/v1}
+      api-key: ${DASHSCOPE_API_KEY:mock-key}
+      model: ${MODEL_L3_BAILIAN_MODEL:mock-bailian}
+      timeout-ms: ${MODEL_L3_BAILIAN_TIMEOUT_MS:8000}

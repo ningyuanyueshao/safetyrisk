@@ -1,18 +1,41 @@
 spring:
   application:
     name: gateway-service
+  reactor:
+    context-propagation: auto
+  cloud:
+    gateway:
+      httpclient:
+        connect-timeout: ${GATEWAY_HTTP_CONNECT_TIMEOUT_MS:3000}
+        # 覆盖 moderation 同步预算(30s)并留 2s 的网关转发/序列化余量。
+        response-timeout: ${GATEWAY_HTTP_RESPONSE_TIMEOUT_MS:32000}ms
 
 gateway:
   backend:
     moderation-url: http://localhost:8081
   rate-limit:
     per-ip-per-second: 50
+    # 无请求超过该秒数的 IP 计数条目会被定时任务淘汰，防止内存无限增长
+    counter-cleanup-ttl-seconds: 10
+    # 计数条目清理任务的运行间隔（毫秒）
+    counter-cleanup-interval-ms: 5000
 
 server:
   port: 8080
 
 management:
+  tracing:
+    sampling:
+      probability: ${MANAGEMENT_TRACING_SAMPLING_PROBABILITY:1.0}
+  zipkin:
+    tracing:
+      endpoint: ${MANAGEMENT_ZIPKIN_TRACING_ENDPOINT:http://localhost:9411/api/v2/spans}
   endpoints:
     web:
       exposure:
+        # Gateway 也需要暴露 /actuator/prometheus，统一纳入 Prometheus 抓取。
         include: health,info,metrics,prometheus
+
+logging:
+  pattern:
+    level: "%5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}]"

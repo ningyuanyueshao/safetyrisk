@@ -1,0 +1,7 @@
+contentType,scenario,content,imageUrl,userId,expectedDecision,expectedReasonContains
+TEXT,NORMAL,压测正常文本 __MOCK_SCENARIO_NORMAL__,,perf-mock-user-001,PASS,mock-normal
+TEXT,EXTREME_LATENCY,压测高延迟文本 __MOCK_SCENARIO_EXTREME_LATENCY__,,perf-mock-user-002,PASS,mock-extreme-latency
+TEXT,HTTP_429,压测429文本 __MOCK_SCENARIO_429__,,perf-mock-user-003,REVIEW,L3 API call failed
+TEXT,HTTP_500,压测500文本 __MOCK_SCENARIO_500__,,perf-mock-user-004,REVIEW,L3 API call failed
+TEXT,HTTP_503,压测503文本 __MOCK_SCENARIO_503__,,perf-mock-user-005,REVIEW,L3 API call failed
+TEXT,TIMEOUT,压测超时文本 __MOCK_SCENARIO_TIMEOUT__,,perf-mock-user-006,REVIEW,Model inference timeout/error

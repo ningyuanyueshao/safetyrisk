@@ -16,7 +16,8 @@ public final class ModerationCacheKeyBuilder {
                 safe(request.getContentType() == null ? null : request.getContentType().name()),
                 safe(request.getUserId()),
                 safe(request.getContent()),
-                safe(request.getImageUrl()));
+                safe(request.getImageUrl()),
+                safe(request.getImageData()));
         return sha256Hex(raw);
     }
 

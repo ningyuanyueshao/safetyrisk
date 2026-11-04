@@ -4,12 +4,12 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.multimodel.safetyrisk.moderation.config.ModerationCacheProperties;
 import java.time.Duration;
+import org.springframework.stereotype.Component;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
-import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
-@Service
-public class RedisModerationDecisionCache implements ModerationDecisionCache {
+@Component
+public class RedisModerationDecisionCache {
 
     private final ReactiveStringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
@@ -24,7 +24,6 @@ public class RedisModerationDecisionCache implements ModerationDecisionCache {
         this.properties = properties;
     }
 
-    @Override
     public Mono<CachedModerationDecision> get(String key) {
         if (!properties.isEnabled()) {
             return Mono.empty();
@@ -37,7 +36,6 @@ public class RedisModerationDecisionCache implements ModerationDecisionCache {
                 .onErrorResume(ignored -> Mono.empty());
     }
 
-    @Override
     public Mono<Void> put(String key, CachedModerationDecision decision) {
         if (!properties.isEnabled()) {
             return Mono.empty();

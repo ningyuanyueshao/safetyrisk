@@ -1,0 +1,7 @@
+contentType,scenario,content,imageUrl,userId,expectedDecision,expectedReasonContains,expectedStatus
+TEXT,NORMAL,异步正常文本 __MOCK_SCENARIO_NORMAL__,,async-mock-user-001,PASS,mock-normal,COMPLETED
+TEXT,EXTREME_LATENCY,异步高延迟文本 __MOCK_SCENARIO_EXTREME_LATENCY__,,async-mock-user-002,PASS,mock-extreme-latency,COMPLETED
+TEXT,HTTP_429,异步429文本 __MOCK_SCENARIO_429__,,async-mock-user-003,REVIEW,L3 API call failed,COMPLETED
+TEXT,HTTP_500,异步500文本 __MOCK_SCENARIO_500__,,async-mock-user-004,REVIEW,L3 API call failed,COMPLETED
+TEXT,HTTP_503,异步503文本 __MOCK_SCENARIO_503__,,async-mock-user-005,REVIEW,L3 API call failed,COMPLETED
+TEXT,TIMEOUT,异步超时文本 __MOCK_SCENARIO_TIMEOUT__,,async-mock-user-006,REVIEW,Model inference timeout/error,COMPLETED

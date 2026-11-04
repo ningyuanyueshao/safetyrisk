@@ -1,0 +1,29 @@
+services:
+  mock-bailian-service:
+    profiles: ["mock-l3"]
+    build:
+      context: ../..
+      dockerfile: mock-bailian-service/Dockerfile
+    container_name: msr-mock-bailian-service
+    ports:
+      - "8089:8089"
+    environment:
+      SPRING_APPLICATION_NAME: mock-bailian-service
+      MOCK_BAILIAN_NORMAL_LATENCY_MS: ${MOCK_BAILIAN_NORMAL_LATENCY_MS:-100}
+      MOCK_BAILIAN_EXTREME_LATENCY_MS: ${MOCK_BAILIAN_EXTREME_LATENCY_MS:-3800}
+      MOCK_BAILIAN_TIMEOUT_LATENCY_MS: ${MOCK_BAILIAN_TIMEOUT_LATENCY_MS:-7000}
+
+  model-service:
+    profiles: ["apps", "mock-l3"]
+    depends_on:
+      redis:
+        condition: service_healthy
+      mock-bailian-service:
+        condition: service_started
+    environment:
+      SPRING_PROFILES_ACTIVE: ${MODEL_SERVICE_ACTIVE_PROFILE:-l3-mock}
+      MODEL_L3_PROVIDER: bailian
+      MODEL_L3_BAILIAN_BASE_URL: ${MODEL_L3_BAILIAN_BASE_URL:-http://mock-bailian-service:8089/compatible-mode/v1}
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-mock-key}
+      MODEL_SERVICE_L3_CIRCUIT_FAILURE_THRESHOLD: ${MODEL_SERVICE_L3_CIRCUIT_FAILURE_THRESHOLD:-1000000}
+      MODEL_SERVICE_L3_CIRCUIT_OPEN_MS: ${MODEL_SERVICE_L3_CIRCUIT_OPEN_MS:-1000}

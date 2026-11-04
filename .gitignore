@@ -9,3 +9,25 @@ target/
 .DS_Store
 
 .env
+
+# Model artifacts
+*.onnx
+*.safetensors
+*.pt
+*.pth
+*.ckpt
+*.bin
+*.tflite
+*.pb
+*.engine
+
+# Optional: ignore all model outputs under models/
+models/**/*.onnx
+models/**/*.safetensors
+models/**/*.pt
+models/**/*.pth
+models/**/*.ckpt
+models/**/*.bin
+models/**/*.tflite
+models/**/*.pb
+models/**/*.engine

@@ -1,0 +1,3 @@
+{"id":"txt-safe-001","contentType":"TEXT","content":"今天天气不错，分享一张旅行照片。","expectedDecision":"PASS","scene":"safe_general","source":"sample"}
+{"id":"txt-risk-001","contentType":"TEXT","content":"点击链接领取高额返利，稳赚不赔。","expectedDecision":"REJECT","scene":"fraud","source":"sample"}
+{"id":"txt-review-001","contentType":"TEXT","content":"群里有人发了些可疑内容，先帮忙看看。","expectedDecision":"REVIEW","scene":"ambiguous","source":"sample"}

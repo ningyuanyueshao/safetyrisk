@@ -17,7 +17,7 @@ services:
       retries: 10
 
   mysql:
-    image: mysql:8.0
+    image: mysql:8.0.18
     container_name: msr-mysql
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root123}
@@ -51,23 +51,59 @@ services:
       - zookeeper
     ports:
       - "9092:9092"
+      - "29092:29092"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
 
   zipkin:
-    image: openzipkin/zipkin:3.4.3
+    # Zipkin 提供本地链路追踪查看入口，接收各服务通过 Brave/Micrometer Tracing 导出的 span。
+    image: openzipkin/zipkin:3.4
     container_name: msr-zipkin
     ports:
       - "9411:9411"
 
+  prometheus:
+    profiles: ["observability"]
+    image: prom/prometheus:v2.54.1
+    container_name: msr-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./alerts:/etc/prometheus/alerts:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+
+  grafana:
+    profiles: ["observability"]
+    image: grafana/grafana:latest
+    container_name: msr-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
   moderation-service:
+    profiles: ["apps"]
     build:
       context: ../..
       dockerfile: moderation-service/Dockerfile
@@ -89,23 +125,72 @@ services:
       SPRING_DATASOURCE_USERNAME: ${MYSQL_USER:-moderation}
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD:-moderation123}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      # Zipkin exporter 地址与采样率配置给 Spring Boot tracing 使用，三服务会上报 span 到该接收端。
       MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: http://zipkin:9411/api/v2/spans
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-1.0}
+      MODEL_SERVICE_BASE_URL: http://model-service:8082
+      # 严格一致性模式：同步/异步给相同下游预算，均覆盖 model-service 的完整故障转移链。
+      MODERATION_MODEL_SERVICE_TIMEOUT_MS: ${MODERATION_MODEL_SERVICE_TIMEOUT_MS:-30000}
+      MODERATION_MODEL_SERVICE_ASYNC_TIMEOUT_MS: ${MODERATION_MODEL_SERVICE_ASYNC_TIMEOUT_MS:-30000}
+      MODERATION_ASYNC_ENQUEUE_TIMEOUT_MS: ${MODERATION_ASYNC_ENQUEUE_TIMEOUT_MS:-5000}
+      MODERATION_ASYNC_PROCESS_TIMEOUT_MS: ${MODERATION_ASYNC_PROCESS_TIMEOUT_MS:-35000}
+      MODERATION_ASYNC_MAX_RETRIES: ${MODERATION_ASYNC_MAX_RETRIES:-2}
+      MODERATION_ASYNC_RETRY_BACKOFF_MS: ${MODERATION_ASYNC_RETRY_BACKOFF_MS:-1000}
+      MODERATION_ASYNC_PROCESSING_LEASE_MS: ${MODERATION_ASYNC_PROCESSING_LEASE_MS:-90000}
 
   model-service:
+    profiles: ["apps"]
     build:
       context: ../..
       dockerfile: model-service/Dockerfile
     container_name: msr-model-service
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       redis:
         condition: service_healthy
     ports:
       - "8082:8082"
+    volumes:
+      # L2 图像模型较大，不打进镜像；评测时只读挂载，避免每次 rebuild 复制模型权重。
+      - ../../models/resnet50_finetune_onnx:/models/resnet50_finetune_onnx:ro
     environment:
       SPRING_APPLICATION_NAME: model-service
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-replace-me}
+      SPRING_PROFILES_ACTIVE: ${MODEL_SERVICE_ACTIVE_PROFILE:-}
+      MODEL_L2_TEXT_ENABLED: ${MODEL_L2_TEXT_ENABLED:-false}
+      MODEL_L2_IMAGE_ENABLED: ${MODEL_L2_IMAGE_ENABLED:-true}
+      MODEL_L2_IMAGE_MODEL_PATH: ${MODEL_L2_IMAGE_MODEL_PATH:-/models/resnet50_finetune_onnx}
+      MODEL_L3_PROVIDER: ${MODEL_L3_PROVIDER:-failover}
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-${BAILIAN_API_KEY:-}}
+      MODEL_L3_BAILIAN_BASE_URL: ${MODEL_L3_BAILIAN_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}
+      MODEL_L3_BAILIAN_MODEL: ${MODEL_L3_BAILIAN_MODEL:-qwen3.8-flash}
+      MODEL_L3_BAILIAN_TIMEOUT_MS: ${MODEL_L3_BAILIAN_TIMEOUT_MS:-18000}
+      MODEL_L3_VLLM_BASE_URL: ${MODEL_L3_VLLM_DOCKER_BASE_URL:-${MODEL_L3_VLLM_BASE_URL:-http://host.docker.internal:11434/v1}}
+      MODEL_L3_VLLM_MODEL: ${MODEL_L3_VLLM_MODEL:-qwen3.5:0.8b}
+      MODEL_L3_VLLM_REASONING_EFFORT: ${MODEL_L3_VLLM_REASONING_EFFORT:-none}
+      MODEL_L3_VLLM_TIMEOUT_MS: ${MODEL_L3_VLLM_TIMEOUT_MS:-7000}
+      MODEL_SERVICE_INFER_TIMEOUT_MS: ${MODEL_SERVICE_INFER_TIMEOUT_MS:-27000}
+      MODEL_SERVICE_L3_CIRCUIT_FAILURE_THRESHOLD: ${MODEL_SERVICE_L3_CIRCUIT_FAILURE_THRESHOLD:-5}
+      MODEL_SERVICE_L3_CIRCUIT_OPEN_MS: ${MODEL_SERVICE_L3_CIRCUIT_OPEN_MS:-15000}
+      MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: http://zipkin:9411/api/v2/spans
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-1.0}
+
+  mock-bailian-service:
+    profiles: ["mock-l3"]
+    build:
+      context: ../..
+      dockerfile: mock-bailian-service/Dockerfile
+    container_name: msr-mock-bailian-service
+    ports:
+      - "8089:8089"
+    environment:
+      SPRING_APPLICATION_NAME: mock-bailian-service
+      MOCK_BAILIAN_NORMAL_LATENCY_MS: ${MOCK_BAILIAN_NORMAL_LATENCY_MS:-100}
+      MOCK_BAILIAN_EXTREME_LATENCY_MS: ${MOCK_BAILIAN_EXTREME_LATENCY_MS:-3800}
+      MOCK_BAILIAN_TIMEOUT_LATENCY_MS: ${MOCK_BAILIAN_TIMEOUT_LATENCY_MS:-7000}
 
   gateway-service:
+    profiles: ["apps"]
     build:
       context: ../..
       dockerfile: gateway-service/Dockerfile
@@ -120,7 +205,16 @@ services:
     environment:
       SPRING_APPLICATION_NAME: gateway-service
       GATEWAY_BACKEND_MODERATION_URL: http://moderation-service:8081
+      GATEWAY_HTTP_CONNECT_TIMEOUT_MS: ${GATEWAY_HTTP_CONNECT_TIMEOUT_MS:-3000}
+      GATEWAY_HTTP_RESPONSE_TIMEOUT_MS: ${GATEWAY_HTTP_RESPONSE_TIMEOUT_MS:-32000}
+      # 标准 Spring 属性让尚未重建的旧镜像也能立即应用预算；新镜像同时支持上面的项目级变量。
+      SPRING_CLOUD_GATEWAY_HTTPCLIENT_CONNECT_TIMEOUT: ${GATEWAY_HTTP_CONNECT_TIMEOUT_MS:-3000}
+      SPRING_CLOUD_GATEWAY_HTTPCLIENT_RESPONSE_TIMEOUT: ${GATEWAY_HTTP_RESPONSE_TIMEOUT_MS:-32000}ms
+      MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: http://zipkin:9411/api/v2/spans
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-1.0}
 
 volumes:
   redis-data:
   mysql-data:
+  prometheus-data:
+  grafana-data:

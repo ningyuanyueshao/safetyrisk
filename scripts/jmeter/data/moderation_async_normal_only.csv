@@ -1,0 +1,2 @@
+contentType,scenario,content,imageUrl,userId,expectedDecision,expectedReasonContains,expectedStatus
+TEXT,NORMAL,异步正常文本 __MOCK_SCENARIO_NORMAL__,,async-mock-user-normal-001,PASS,mock-normal,COMPLETED
